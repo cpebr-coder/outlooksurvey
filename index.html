@@ -204,7 +204,7 @@ td input[type="text"]{border:1px solid #d8dff0;padding:6px 8px;font-size:13px;bo
     <div class="section-header">Pengantar</div>
     <div class="section-body">
       <p class="section-intro">Yth. Bapak/Ibu Direksi PT PLN (Persero),</p>
-      <p class="section-intro">Kuesioner ini disusun untuk menghimpun pandangan Direksi tentang risiko dan peluang PLN pada 2027 dalam delapan topik prioritas, terutama risiko yang baru muncul atau meningkat dibanding 2026. Hasilnya akan menjadi bahan pertimbangan untuk menetapkan risiko utama pada setiap topik prioritas dalam Risk Outlook PLN 2027.</p>
+      <p class="section-intro">Kuesioner ini disusun untuk menghimpun pandangan Direksi tentang risiko dan peluang PLN pada 2027 dalam delapan topik prioritas, terutama risiko yang baru muncul atau meningkat dibanding 2026. Hasilnya akan menjadi bahan <strong>Workshop 1 pada 27 November 2026</strong> untuk menetapkan risiko utama pada setiap topik prioritas dalam Risk Outlook PLN 2027.</p>
       <p class="section-intro">Pengisian kuesioner memerlukan waktu sekitar <strong>25 menit</strong>, dan seluruh jawaban diolah secara agregat tanpa dikutip atas nama pribadi. Kuesioner yang telah diisi mohon dikembalikan melalui Divisi Manajemen Risiko paling lambat <strong>25 November 2026</strong>.</p>
       <p class="section-intro" style="color:#c0392b;font-weight:600;font-size:13px">* Wajib diisi</p>
     </div>
@@ -586,23 +586,79 @@ function validateAndGo(from,to){
   else window.scrollTo({top:0,behavior:'smooth'});
 }
 
-function submitForm(){
-  if(!validatePage3()){window.scrollTo({top:0,behavior:'smooth'});return}
-  // Fill success page
-  document.getElementById('s_nama').textContent=document.getElementById('nama').value||'—';
-  document.getElementById('s_dir').textContent=document.getElementById('direktorat').value||'—';
-  const now=new Date();
+// ==================== GOOGLE APPS SCRIPT INTEGRATION ====================
+var GAS_URL='https://script.google.com/macros/s/AKfycbxTjWVjkjE26lfYzt0Unm-2mdLekvOAanary8X2B1DFsxTDx8bSzgvPnkc-_4zpL8GNtA/exec';
+
+function collectFormData(){
+  var data={};
+  // A
+  data.nama=document.getElementById('nama').value||'';
+  data.direktorat=document.getElementById('direktorat').value||'';
+  data.tanggal=document.getElementById('tanggal').value||'';
+  // B1
+  var b1=document.querySelector('input[name="b1"]:checked');
+  data.b1=b1?b1.value:'';
+  // B2
+  data.b2_r1=document.getElementById('b2_r1').value||'';
+  data.b2_a1=document.getElementById('b2_a1').value||'';
+  data.b2_r2=document.getElementById('b2_r2').value||'';
+  data.b2_a2=document.getElementById('b2_a2').value||'';
+  data.b2_r3=document.getElementById('b2_r3').value||'';
+  data.b2_a3=document.getElementById('b2_a3').value||'';
+  // B3
+  data.b3_ranks=[];
+  document.querySelectorAll('.rank-badge.selected').forEach(function(b){
+    data.b3_ranks.push({row:parseInt(b.closest('.rank-badges').dataset.row),value:b.dataset.v});
+  });
+  data.b3_other=document.getElementById('b3_other').value||'';
+  // C — Risks
+  data.risks=[];
+  document.querySelectorAll('#riskTable tr[data-topic]:not(.topic-row)').forEach(function(row){
+    var cells=row.querySelectorAll('td');
+    var kode=cells[0]?cells[0].textContent.trim():'';
+    var deskripsi=cells[1]?cells[1].textContent.trim():'';
+    var inputs=row.querySelectorAll('td input[type="text"]');
+    if(inputs.length>=2){kode=inputs[0].value||'';deskripsi=inputs[1].value||'';}
+    var groups=row.querySelectorAll('.rbg');
+    var dampak='',kemungkinan='',kecepatan='',tren='';
+    if(groups[0]){var s=groups[0].querySelector('.rb.sel');if(s)dampak=s.dataset.v;}
+    if(groups[1]){var s=groups[1].querySelector('.rb.sel');if(s)kemungkinan=s.dataset.v;}
+    if(groups[2]){var s=groups[2].querySelector('.rb.sel');if(s)kecepatan=s.dataset.v;}
+    if(groups[3]){var s=groups[3].querySelector('.rb.sel');if(s)tren=s.dataset.v;}
+    if(dampak||kemungkinan){
+      data.risks.push({kode:kode,deskripsi:deskripsi,dampak:dampak,kemungkinan:kemungkinan,kecepatan:kecepatan,tren:tren});
+    }
+  });
+  data.riskCount=data.risks.length;
+  // D1
+  for(var i=1;i<=8;i++){var r=document.querySelector('input[name="d1_'+i+'"]:checked');data['d1_'+i]=r?r.value:'';}
+  // D2-D5, E1-E2
+  ['d2','d3','d4','d5','e1','e2'].forEach(function(id){data[id]=document.getElementById(id).value||'';});
+  return data;
+}
+
+function showSuccessPage(data){
+  document.getElementById('s_nama').textContent=data.nama||'—';
+  document.getElementById('s_dir').textContent=data.direktorat||'—';
+  var now=new Date();
   document.getElementById('s_time').textContent=now.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})+', '+now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-  // Count rated risks
-  let count=0;
-  for(let t=1;t<=8;t++){
-    document.querySelectorAll('#riskTable tr[data-topic="'+t+'"]:not(.topic-row)').forEach(row=>{
-      const groups=row.querySelectorAll('.rbg');
-      if(groups.length>=2&&groups[0].querySelector('.rb.sel')&&groups[1].querySelector('.rb.sel'))count++;
-    });
-  }
-  document.getElementById('s_count').textContent=count;
+  document.getElementById('s_count').textContent=data.riskCount;
   goTo(4);
+}
+
+function submitForm(){
+  if(!validatePage3()){window.scrollTo({top:0,behavior:'smooth'});return;}
+  var data=collectFormData();
+  // Disable button
+  var btn=document.querySelector('.btn-submit');
+  var origText=btn.textContent;
+  btn.textContent='Mengirim...';btn.disabled=true;btn.style.opacity='0.6';
+  fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify(data)})
+  .then(function(){showSuccessPage(data);})
+  .catch(function(err){
+    alert('Gagal mengirim: '+err.message+'\nSilakan coba lagi.');
+    btn.textContent=origText;btn.disabled=false;btn.style.opacity='1';
+  });
 }
 
 // RANK BADGE LOGIC
